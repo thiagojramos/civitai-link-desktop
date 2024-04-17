@@ -81,8 +81,7 @@ function createWindow() {
     hasShadow: true,
     darkTheme: true,
     frame: true,
-    fullscreenable: false,
-    skipTaskbar: false,
+    skipTaskbar: true,
     titleBarOverlay: {
       color: nativeTheme.shouldUseDarkColors ? '#1a1b1e' : '#fff',
       symbolColor: nativeTheme.shouldUseDarkColors ? '#fff' : '#000',
@@ -121,11 +120,6 @@ function createWindow() {
     });
 
     mainWindow.webContents.send('app-ready', true);
-  });
-
-  mainWindow.on('minimize', function (event) {
-    event.preventDefault();
-    mainWindow.hide();
   });
 
   mainWindow.on('close', function (event) {
@@ -262,10 +256,9 @@ app.whenReady().then(async () => {
     mainWindow.webContents.send('settings-update', newValue);
   });
 
-  if (process.platform === 'darwin') {
-    // Hides dock icon on macOS but keeps in taskbar
-    app.dock.hide();
-  }
+  autoUpdater.on('update-available', () => {
+    mainWindow.webContents.send('update-available');
+  });
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

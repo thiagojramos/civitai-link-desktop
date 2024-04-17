@@ -29,6 +29,8 @@ declare global {
       }) => void;
       setStableDiffusion: (type: string) => void;
       searchFile: (hash: string) => Resource;
+      restartApp: () => void;
+      fetchMetadata: (localPath: string) => JSON;
     };
   }
 
@@ -50,6 +52,7 @@ declare global {
     trainedWords?: string[];
     description?: string;
     baseModel?: string;
+    fileSize?: number; // bytes
   };
 
   enum ActivityType {
@@ -84,7 +87,7 @@ declare global {
     CONTROLNET = 'ControlNet',
     UPSCALER = 'Upscaler',
     HYPERNETWORK = 'Hypernetwork',
-    TEXTUAL_INVERSION = 'TextualInversion',
+    TEXTUAL_INVERSION = 'Embeddings',
     LORA = 'Lora',
     LO_CON = 'LoCon',
     VAE = 'VAE',

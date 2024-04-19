@@ -25,11 +25,6 @@ export enum SortDirection {
   DESC = 'desc',
 }
 
-type sortFilesParams = {
-  type: SortType;
-  direction: SortDirection;
-};
-
 export enum FileListFilters {
   TYPE = 'type',
   BASE_MODEL = 'baseModel',
@@ -58,36 +53,42 @@ export enum BaseModels {
   PONY = 'Pony',
 }
 
-type FilterFilesByTypeParams = {
-  modelType: string[];
-  baseModelType: string[];
-};
-
 type FileContextType = {
   fileList: ResourcesMap;
   removeActivity: (param: RemoveActivityParams) => void;
   filteredFileList: ResourcesMap;
-  filterFiles: (search: string) => void;
+  searchFiles: (search: string) => void;
   searchTerm: string;
   setSearchTerm: (search: string) => void;
   fileListCount: number;
-  sortFiles: ({ type, direction }: sortFilesParams) => void;
-  filterFilesByType: ({
-    modelType,
-    baseModelType,
-  }: FilterFilesByTypeParams) => void;
+  sortFiles: (type: SortType) => void;
+  sortDirection?: SortDirection;
+  sortType: SortType | null;
+  clearFilters: () => void;
+  filterFiles: (type: string, filterType: FileListFilters) => void;
+  appliedFilters: {
+    modelType: string[];
+    baseModelType: string[];
+  };
 };
 
 const defaultValue: FileContextType = {
   fileList: {},
   removeActivity: () => {},
   filteredFileList: {},
-  filterFiles: () => {},
+  searchFiles: () => {},
   searchTerm: '',
   setSearchTerm: () => {},
   fileListCount: 0,
   sortFiles: () => {},
-  filterFilesByType: () => {},
+  sortDirection: SortDirection.DESC,
+  sortType: null,
+  clearFilters: () => {},
+  filterFiles: () => {},
+  appliedFilters: {
+    modelType: [],
+    baseModelType: [],
+  },
 };
 
 const FileContext = createContext<FileContextType>(defaultValue);
@@ -107,69 +108,66 @@ const sortModelName = (
   a: Resource,
   b: Resource,
   type: keyof Resource,
-  direction: sortFilesParams['direction'],
+  direction: SortDirection,
 ) => {
   const sortType = type as keyof Resource;
   const filteredFileListA = a[sortType] as string;
   const filteredFileListB = b[sortType] as string;
 
-  if (filteredFileListA && filteredFileListB) {
-    if (direction === 'desc') {
-      return filteredFileListB.localeCompare(filteredFileListA);
-    } else {
-      return filteredFileListA.localeCompare(filteredFileListB);
-    }
-  }
+  if (!filteredFileListA) return 1;
+  if (!filteredFileListB) return -1;
 
-  return 0;
+  if (direction === SortDirection.DESC) {
+    return filteredFileListB.localeCompare(filteredFileListA);
+  } else {
+    return filteredFileListA.localeCompare(filteredFileListB);
+  }
 };
 
 const sortDownloadDate = (
   a: Resource,
   b: Resource,
   type: keyof Resource,
-  direction: sortFilesParams['direction'],
+  direction: SortDirection,
 ) => {
   const sortType = type as keyof Resource;
   const filteredFileListA = a[sortType] as string;
   const filteredFileListB = b[sortType] as string;
 
-  if (filteredFileListA && filteredFileListB) {
-    if (direction === 'desc') {
-      return (
-        new Date(filteredFileListB).getTime() -
-        new Date(filteredFileListA).getTime()
-      );
-    } else {
-      return (
-        new Date(filteredFileListA).getTime() -
-        new Date(filteredFileListB).getTime()
-      );
-    }
-  }
+  if (!filteredFileListA) return 1;
+  if (!filteredFileListB) return -1;
 
-  return 0;
+  if (direction === SortDirection.DESC) {
+    return (
+      new Date(filteredFileListB).getTime() -
+      new Date(filteredFileListA).getTime()
+    );
+  } else {
+    return (
+      new Date(filteredFileListA).getTime() -
+      new Date(filteredFileListB).getTime()
+    );
+  }
 };
 
 const sortFileSize = (
   a: Resource,
   b: Resource,
   type: keyof Resource,
-  direction: sortFilesParams['direction'],
+  direction: SortDirection,
 ) => {
   const sortType = type as keyof Resource;
   const filteredFileListA = a[sortType] as number;
   const filteredFileListB = b[sortType] as number;
 
-  if (filteredFileListA && filteredFileListB) {
-    if (direction === 'desc') {
-      return filteredFileListB - filteredFileListA;
-    } else {
-      return filteredFileListA - filteredFileListB;
-    }
-  }
+  if (!filteredFileListA) return 1;
+  if (!filteredFileListB) return -1;
 
-  return 0;
+  if (direction === SortDirection.DESC) {
+    return filteredFileListA - filteredFileListB;
+  } else {
+    return filteredFileListB - filteredFileListA;
+  }
 };
 
 export function FileProvider({ children }: { children: React.ReactNode }) {
@@ -179,6 +177,14 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
   // Filtered source of files (whats displayed)
   const [filteredFileList, setFilteredFileList] = useState<ResourcesMap>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    SortDirection.DESC,
+  );
+  const [sortType, setSortType] = useState<SortType>(SortType.DOWNLOAD_DATE);
+
+  // Filter types
+  const [modelTypeArray, setModelTypeArray] = useState<string[]>([]);
+  const [baseModelArray, setBaseModelArray] = useState<string[]>([]);
 
   const { toast } = useToast();
   const { cancelDownload } = useApi();
@@ -206,34 +212,19 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
     [fileList, filteredFileList],
   );
 
-  const filterFiles = useCallback(
+  const searchFiles = useCallback(
     (search: string) => {
-      if (!search) {
-        setFilteredFileList(fileList);
-        return;
-      }
+      const modelLength = modelTypeArray.length > 0;
+      const baseModelLength = baseModelArray.length > 0;
 
       const filtered = Object.values(fileList)
         .filter((file) => {
+          if (search === '') {
+            return true;
+          }
+
           return file.modelName?.toLowerCase().includes(search.toLowerCase());
         })
-        .reduce(reduceFileMap, {});
-
-      setFilteredFileList(filtered);
-    },
-    [fileList],
-  );
-
-  const filterFilesByType = useCallback(
-    ({ modelType, baseModelType }: FilterFilesByTypeParams) => {
-      const modelLength = modelType.length > 0;
-      const baseModelLength = baseModelType.length > 0;
-      if (!modelLength && !baseModelLength) {
-        setFilteredFileList(fileList);
-        return;
-      }
-
-      const filtered = Object.values(fileList)
         .filter((file) => {
           if (!file.type) return false;
 
@@ -241,7 +232,7 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
             return true;
           }
 
-          return modelType.includes(file.type.toLowerCase());
+          return modelTypeArray.includes(file.type.toLowerCase());
         })
         .filter((file) => {
           if (!file.baseModel) return false;
@@ -250,35 +241,88 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
             return true;
           }
 
-          return baseModelType.includes(file.baseModel?.toLowerCase());
+          return baseModelArray.includes(file.baseModel?.toLowerCase());
+        })
+        .sort((a, b) => {
+          if (sortType === SortType.MODEL_NAME) {
+            return sortModelName(a, b, sortType, sortDirection);
+          }
+          if (sortType === SortType.DOWNLOAD_DATE) {
+            return sortDownloadDate(a, b, sortType, sortDirection);
+          }
+          if (sortType === SortType.FILE_SIZE) {
+            return sortFileSize(a, b, sortType, sortDirection);
+          }
+
+          // Default to sorting by modelName
+          return 1;
         })
         .reduce(reduceFileMap, {});
 
       setFilteredFileList(filtered);
     },
-    [fileList],
+    [fileList, sortType, sortDirection, modelTypeArray, baseModelArray],
   );
 
-  const sortFiles = ({ type, direction }: sortFilesParams) => {
-    const filtered = Object.values(filteredFileList)
-      .sort((a, b) => {
-        if (type === 'modelName') {
-          return sortModelName(a, b, type, direction);
-        }
-        if (type === 'downloadDate') {
-          return sortDownloadDate(a, b, type, direction);
-        }
-        if (type === 'fileSize') {
-          return sortFileSize(a, b, type, direction);
-        }
+  const sortFiles = (type: SortType) => {
+    setSortType(type);
+    setSortDirection(
+      sortDirection === SortDirection.ASC
+        ? SortDirection.DESC
+        : SortDirection.ASC,
+    );
 
-        // Default to sorting by modelName
-        return 0; // Return a default value of 0
-      })
-      .reduce(reduceFileMap, {});
-
-    setFilteredFileList(filtered);
+    searchFiles(searchTerm);
   };
+
+  const filterFiles = (type: string, filterType: FileListFilters) => {
+    const typeLowerCase = type.toLowerCase();
+    let modelType: string[] = [...modelTypeArray];
+    let baseModelType: string[] = [...baseModelArray];
+
+    if (filterType === FileListFilters.BASE_MODEL) {
+      if (baseModelArray.includes(typeLowerCase)) {
+        const newBaseModelArray = baseModelArray.filter(
+          (baseModelType) => baseModelType !== typeLowerCase,
+        );
+        setBaseModelArray(newBaseModelArray);
+
+        baseModelType = newBaseModelArray;
+      } else {
+        setBaseModelArray([...baseModelArray, typeLowerCase]);
+        baseModelType = [...baseModelArray, typeLowerCase];
+      }
+    }
+
+    if (filterType === FileListFilters.TYPE) {
+      if (modelTypeArray.includes(typeLowerCase)) {
+        const newModelTypeArray = modelTypeArray.filter(
+          (modelType) => modelType !== typeLowerCase,
+        );
+        setModelTypeArray(newModelTypeArray);
+
+        modelType = newModelTypeArray;
+      } else {
+        setModelTypeArray([...modelTypeArray, typeLowerCase]);
+        modelType = [...modelTypeArray, typeLowerCase];
+      }
+    }
+
+    setBaseModelArray(baseModelType);
+    setModelTypeArray(modelType);
+    searchFiles(searchTerm);
+  };
+
+  const clearFilters = () => {
+    setModelTypeArray([]);
+    setBaseModelArray([]);
+
+    searchFiles(searchTerm);
+  };
+
+  useEffect(() => {
+    searchFiles(searchTerm);
+  }, [searchTerm, sortDirection, sortType, modelTypeArray, baseModelArray]);
 
   // Update when download starts
   useEffect(() => {
@@ -309,7 +353,7 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
       if (!searchTerm) {
         setFilteredFileList(files);
       } else {
-        filterFiles(searchTerm);
+        searchFiles(searchTerm);
       }
     });
 
@@ -371,12 +415,19 @@ export function FileProvider({ children }: { children: React.ReactNode }) {
         fileList,
         removeActivity,
         filteredFileList,
-        filterFiles,
+        searchFiles,
         searchTerm,
         setSearchTerm,
         fileListCount: Object.keys(fileList).length,
         sortFiles,
-        filterFilesByType,
+        sortDirection,
+        sortType,
+        clearFilters,
+        filterFiles,
+        appliedFilters: {
+          modelType: modelTypeArray,
+          baseModelType: baseModelArray,
+        },
       }}
     >
       {children}

@@ -34,20 +34,19 @@ export function PathInput({
 
   useEffect(() => {
     const fetchResourcePath = async () => {
-      const resourecePath = await getResourcePath(type);
-
-      if (type === ResourceType.DEFAULT) {
+      if ((type as string) === 'DEFAULT') {
         setDirPath(rootResourcePath);
       } else {
+        const resourecePath = await getResourcePath(type);
         setDirPath(resourecePath);
       }
     };
 
     fetchResourcePath();
-  }, []);
+  }, [rootResourcePath]);
 
   async function getDir() {
-    const selectedDir = await selectDirectory();
+    const selectedDir = await selectDirectory(dirPath || '');
     const directory =
       selectedDir !== null && selectedDir !== undefined ? selectedDir : '';
 
@@ -55,13 +54,15 @@ export function PathInput({
 
     setDirPath(directory);
 
-    if (type !== ResourceType.DEFAULT) {
+    if ((type as string) !== 'DEFAULT') {
       setResourcePath(type, directory);
 
       if (showToast) {
         toast({
-          title: `${type} Model directory set`,
-          description: 'Root Model directory has been set successfully',
+          // @ts-ignore
+          title: `${ResourceType[type]} Model directory set`,
+          // @ts-ignore
+          description: `${ResourceType[type]} Model directory has been set successfully`,
         });
       }
     } else {

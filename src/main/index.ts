@@ -44,6 +44,7 @@ import {
   watchVaultMeta,
 } from './store/vault';
 import unhandled from 'electron-unhandled';
+import { clearTempFolders } from './utils/clear-temp-folders';
 
 unhandled({
   logger: log.error,
@@ -81,7 +82,6 @@ function createWindow() {
     hasShadow: true,
     darkTheme: true,
     frame: true,
-    skipTaskbar: false,
     titleBarOverlay: {
       color: nativeTheme.shouldUseDarkColors ? '#1a1b1e' : '#fff',
       symbolColor: nativeTheme.shouldUseDarkColors ? '#fff' : '#000',
@@ -126,6 +126,8 @@ function createWindow() {
     if (!isQuiting) {
       event.preventDefault();
       mainWindow.hide();
+    } else {
+      clearTempFolders();
     }
 
     return false;
@@ -221,9 +223,10 @@ app.whenReady().then(async () => {
     return getResourcePath(type);
   });
 
-  ipcMain.handle('dialog:openDirectory', async () => {
+  ipcMain.handle('dialog:openDirectory', async (_, dirPath: string) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory'],
+      defaultPath: dirPath,
+      properties: ['openDirectory', 'createDirectory'],
     });
 
     // Fix closed window when dialog takes focus Windows

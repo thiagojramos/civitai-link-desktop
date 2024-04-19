@@ -5,7 +5,7 @@ declare global {
     electron: ElectronAPI;
     api: {
       setKey: (key: string) => void;
-      selectFolder: () => void;
+      selectFolder: (dirPath: string) => void;
       setRootResourcePath: (path: string) => void;
       clearSettings: () => void;
       cancelDownload: (id: string) => void;
@@ -87,9 +87,9 @@ declare global {
     CONTROLNET = 'ControlNet',
     UPSCALER = 'Upscaler',
     HYPERNETWORK = 'Hypernetwork',
-    TEXTUAL_INVERSION = 'Embeddings',
+    TEXTUALINVERSION = 'Embeddings',
     LORA = 'Lora',
-    LO_CON = 'LoCon',
+    LOCON = 'LoCon',
     VAE = 'VAE',
   }
 
